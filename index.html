@@ -246,11 +246,42 @@ function toggleSound(){
   document.getElementById("soundBtn").textContent=state.sound?"🔊 Sound On":"🔇 Sound Off";
 }
 function speak(text){
-  if(!state.sound || !("speechSynthesis" in window)) return;
+  if(!state.sound) return;
+
+  if(!("speechSynthesis" in window)){
+    alert("Browser ini tidak mendukung suara otomatis.");
+    return;
+  }
+
   speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(text);
-  u.lang="en-US"; u.rate=.88;
-  speechSynthesis.speak(u);
+
+  const voices = speechSynthesis.getVoices();
+
+  const voice =
+    voices.find(v => v.lang === "en-US") ||
+    voices.find(v => v.lang === "en-GB") ||
+    voices.find(v => v.lang.startsWith("en"));
+
+  const utterance = new SpeechSynthesisUtterance(text);
+
+  utterance.lang = "en-US";
+  utterance.rate = 0.85;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+
+  if(voice){
+    utterance.voice = voice;
+  }
+
+  // Chrome Android kadang membutuhkan jeda kecil
+  setTimeout(() => {
+    speechSynthesis.speak(utterance);
+  }, 100);
+}
+  if ("speechSynthesis" in window) {
+  speechSynthesis.onvoiceschanged = function(){
+    speechSynthesis.getVoices();
+  };
 }
 function shuffle(arr){
   for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]]}
