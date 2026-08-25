@@ -88,6 +88,7 @@ input[type=text]:focus{border-color:#9db4ff}
 .modal-card{background:#fff;border-radius:28px;padding:35px;max-width:500px;width:100%;text-align:center;box-shadow:0 30px 80px #0003}
 .modal-icon{font-size:65px}.modal-card h2{font-family:Fredoka;font-size:40px;margin:8px 0}
 .result-score{display:flex;justify-content:center;gap:25px;margin:20px 0}.result-score div{padding:15px 25px;border-radius:18px;background:#f7f8fc}
+.excel-status{font-size:13px;font-weight:700;color:var(--blue2);background:#eef3ff;padding:8px 12px;border-radius:12px;margin-bottom:15px}
 .confetti{position:fixed;inset:0;pointer-events:none;z-index:30;overflow:hidden}
 .confetti i{position:absolute;top:-20px;width:10px;height:18px;animation:fall 2.5s linear forwards}
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg);opacity:0}}
@@ -192,8 +193,8 @@ input[type=text]:focus{border-color:#9db4ff}
     <h2>Cara Bermain</h2>
     <p><b>1.</b> Masukkan nama 2 pemain.<br>
        <b>2.</b> Jawab pertanyaan kosakata secara bergantian.<br>
-       <b>3.</b> Jawaban Benar $\rightarrow$ 🪢 Tarik tali ke arahmu.<br>
-       <b>4.</b> Jawaban Salah $\rightarrow$ Tali tidak bergerak.<br>
+       <b>3.</b> Jawaban Benar &rarr; 🪢 Tarik tali ke arahmu.<br>
+       <b>4.</b> Jawaban Salah &rarr; Tali tidak bergerak.<br>
        <b>5.</b> Pemain pertama yang berhasil menarik tali hingga ujung akan menang!</p>
     <button class="btn btn-primary" onclick="closeHow()">SAYA MENGERTI!</button>
   </div>
@@ -208,6 +209,7 @@ input[type=text]:focus{border-color:#9db4ff}
       <div>🔵 <b id="final1">0</b><br><span id="finalName1">Player 1</span></div>
       <div>🔴 <b id="final2">0</b><br><span id="finalName2">Player 2</span></div>
     </div>
+    <div class="excel-status" id="excelStatus">📊 Menyimpan nilai ke Google Sheets...</div>
     <div class="actions">
       <button class="btn btn-primary" onclick="restartGame()">🔄 MAIN LAGI</button>
       <button class="btn btn-secondary" onclick="goHome()">🏠 MENU UTAMA</button>
@@ -217,6 +219,9 @@ input[type=text]:focus{border-color:#9db4ff}
 <div class="confetti" id="confetti"></div>
 
 <script>
+// URL GOOGLE APPS SCRIPT
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyx7_TeGp74ArpKGsKF1cUusJ77sgNWyuBi1C7IbsmRhG7-_o0p60xhcPPzpuTO23BS5w/exec";
+
 // DAFTAR 12 PERTANYAAN REVISI SESUAI PERMINTAAN
 const questions = [
   {q:'Apa bahasa Inggrisnya "Menulis"?', img:'✍️', options:['Reading','Writing','Dancing','Going'], answer:1},
@@ -235,7 +240,7 @@ const questions = [
 
 let state = {p1:"Pemain 1",p2:"Pemain 2",turn:0,scores:[0,0],position:0,index:0,order:[],sound:true,locked:false};
 
-// AUDIO SYNTHESIZER (Aplikasi Web Audio API tanpa perlu file MP3 eksternal)
+// AUDIO SYNTHESIZER
 let audioCtx = null;
 let bgmTimer = null;
 let isBgmPlaying = false;
@@ -265,7 +270,6 @@ function playTone(freq, type, duration, vol=0.1) {
   } catch(e){}
 }
 
-// BGM Ceria (Melodi latar belakang)
 const bgmNotes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 293.66, 349.23, 440.00, 349.23];
 let bgmStep = 0;
 
@@ -285,19 +289,18 @@ function stopBGM() {
   if (bgmTimer) clearInterval(bgmTimer);
 }
 
-// Efek Suara (SFX)
 function playSoundEffect(type) {
   if (!state.sound) return;
   initAudio();
   if (type === 'correct') {
-    playTone(523.25, 'triangle', 0.15, 0.2); // C5
-    setTimeout(() => playTone(659.25, 'triangle', 0.15, 0.2), 100); // E5
-    setTimeout(() => playTone(783.99, 'triangle', 0.3, 0.2), 200);  // G5
+    playTone(523.25, 'triangle', 0.15, 0.2);
+    setTimeout(() => playTone(659.25, 'triangle', 0.15, 0.2), 100);
+    setTimeout(() => playTone(783.99, 'triangle', 0.3, 0.2), 200);
   } else if (type === 'wrong') {
     playTone(220, 'sawtooth', 0.2, 0.2);
     setTimeout(() => playTone(180, 'sawtooth', 0.3, 0.2), 150);
   } else if (type === 'click') {
-    playTone(400, 'sine', 0.05, 0.1);
+    playTone(400, 'sine', 0.1, 0.1);
   } else if (type === 'win') {
     playTone(440, 'triangle', 0.15, 0.2);
     setTimeout(() => playTone(554.37, 'triangle', 0.15, 0.2), 120);
@@ -440,6 +443,30 @@ function nextQuestion(){
   renderQuestion();
 }
 
+function sendResultToExcel(p1, s1, p2, s2, winnerName) {
+  const statusEl = document.getElementById("excelStatus");
+  if (statusEl) statusEl.textContent = "📊 Menyimpan nilai ke Google Sheets...";
+
+  const formData = new FormData();
+  formData.append("p1", p1);
+  formData.append("s1", s1);
+  formData.append("p2", p2);
+  formData.append("s2", s2);
+  formData.append("winner", winnerName);
+
+  fetch(GOOGLE_SCRIPT_URL, {
+    method: "POST",
+    body: formData
+  })
+  .then(() => {
+    if (statusEl) statusEl.textContent = "✨ Rekap nilai berhasil tersimpan di Google Sheets! ✨";
+  })
+  .catch((err) => {
+    console.error("Gagal mengirim data:", err);
+    if (statusEl) statusEl.textContent = "⚠️ Gagal terhubung ke Google Sheets.";
+  });
+}
+
 function showWinner(){
   playSoundEffect('win');
   const winner = state.position < 0 ? 0 : state.position > 0 ? 1 : (state.scores[0] >= state.scores[1] ? 0 : 1);
@@ -455,6 +482,9 @@ function showWinner(){
   
   confetti();
   speak(winnerName + " menang! Luar biasa!");
+  
+  // Mengirim hasil ke Google Sheets
+  sendResultToExcel(state.p1, state.scores[0], state.p2, state.scores[1], winnerName);
 }
 
 function confetti(){
